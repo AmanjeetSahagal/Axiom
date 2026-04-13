@@ -46,56 +46,92 @@ def process_run(db: Session, run_id: UUID) -> EvalRun:
     score_totals: list[float] = []
     total_cost = 0.0
 
-    for row in run.dataset.rows:
-        rendered_user = render_template(run.prompt_template.user_template, row.input)
-        output, latency_ms, prompt_tokens, output_tokens = call_model(
-            run.prompt_template.system_prompt,
-            rendered_user,
-            run.model,
-        )
-        total_tokens = prompt_tokens + output_tokens
-        result = EvalResult(
-            run_id=run.id,
-            dataset_row_id=row.id,
-            rendered_prompt=rendered_user,
-            output=output,
-            latency_ms=latency_ms,
-            tokens=total_tokens,
-        )
-        db.add(result)
-        db.flush()
-
-        exact = exact_match(output, row.expected_output)
-        semantic = semantic_similarity(output, row.expected_output)
-        judge = llm_judge(rendered_user, output, row.expected_output, run.model)
-        evaluations = {
-            ScoreType.exact: exact,
-            ScoreType.semantic: semantic,
-            ScoreType.judge: judge,
-        }
-        for score_type, evaluation in evaluations.items():
-            db.add(
-                EvaluatorScore(
-                    eval_result_id=result.id,
-                    type=score_type,
-                    score=evaluation.score,
-                    passed=evaluation.passed,
-                    score_metadata=evaluation.metadata,
+    try:
+        for row in run.dataset.rows:
+            rendered_user = render_template(run.prompt_template.user_template, row.input)
+            try:
+                output, latency_ms, prompt_tokens, output_tokens = call_model(
+                    run.prompt_template.system_prompt,
+                    rendered_user,
+                    run.model,
                 )
-            )
+                total_tokens = prompt_tokens + output_tokens
+                result = EvalResult(
+                    run_id=run.id,
+                    dataset_row_id=row.id,
+                    rendered_prompt=rendered_user,
+                    output=output,
+                    latency_ms=latency_ms,
+                    tokens=total_tokens,
+                )
+                db.add(result)
+                db.flush()
 
-        row_avg = mean([exact.score, semantic.score, judge.score / 5.0])
-        score_totals.append(row_avg)
-        total_cost += estimate_cost(run.model, prompt_tokens, output_tokens)
-        run.processed_rows += 1
+                exact = exact_match(output, row.expected_output)
+                semantic = semantic_similarity(output, row.expected_output)
+                judge = llm_judge(rendered_user, output, row.expected_output, run.model)
+                evaluations = {
+                    ScoreType.exact: exact,
+                    ScoreType.semantic: semantic,
+                    ScoreType.judge: judge,
+                }
+                for score_type, evaluation in evaluations.items():
+                    db.add(
+                        EvaluatorScore(
+                            eval_result_id=result.id,
+                            type=score_type,
+                            score=evaluation.score,
+                            passed=evaluation.passed,
+                            score_metadata=evaluation.metadata,
+                        )
+                    )
+
+                row_avg = mean([exact.score, semantic.score, judge.score / 5.0])
+                score_totals.append(row_avg)
+                total_cost += estimate_cost(run.model, prompt_tokens, output_tokens)
+            except Exception as exc:
+                error_message = str(exc)
+                result = EvalResult(
+                    run_id=run.id,
+                    dataset_row_id=row.id,
+                    rendered_prompt=rendered_user,
+                    output="",
+                    latency_ms=0,
+                    tokens=0,
+                    error_message=error_message,
+                )
+                db.add(result)
+                db.flush()
+                for score_type in (ScoreType.exact, ScoreType.semantic, ScoreType.judge):
+                    db.add(
+                        EvaluatorScore(
+                            eval_result_id=result.id,
+                            type=score_type,
+                            score=0.0,
+                            passed=False,
+                            score_metadata={
+                                "error": error_message,
+                                "reason": "Row evaluation failed",
+                            },
+                        )
+                    )
+                run.failed_rows += 1
+
+            run.processed_rows += 1
+            db.commit()
+
+        run.avg_score = round(mean(score_totals), 4) if score_totals else 0.0
+        run.total_cost = round(total_cost, 6)
+        run.status = RunStatus.completed
         db.commit()
-
-    run.avg_score = round(mean(score_totals), 4) if score_totals else 0.0
-    run.total_cost = round(total_cost, 6)
-    run.status = RunStatus.completed
-    db.commit()
-    db.refresh(run)
-    return run
+        db.refresh(run)
+        return run
+    except Exception as exc:
+        run.status = RunStatus.failed
+        run.last_error = str(exc)
+        db.commit()
+        db.refresh(run)
+        raise
 
 
 def compare_runs(db: Session, baseline_run_id: UUID, candidate_run_id: UUID) -> dict:

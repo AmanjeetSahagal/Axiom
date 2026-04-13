@@ -36,6 +36,7 @@ export type RunResult = {
   output: string;
   latency_ms: number;
   tokens: number;
+  error_message?: string | null;
   scores: Score[];
 };
 
@@ -49,6 +50,8 @@ export type Run = {
   total_cost: number;
   processed_rows: number;
   total_rows: number;
+  failed_rows: number;
+  last_error?: string | null;
   created_at: string;
   results?: RunResult[];
 };

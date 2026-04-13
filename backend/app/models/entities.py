@@ -94,6 +94,8 @@ class EvalRun(Base):
     total_cost: Mapped[float] = mapped_column(Float, default=0.0)
     processed_rows: Mapped[int] = mapped_column(Integer, default=0)
     total_rows: Mapped[int] = mapped_column(Integer, default=0)
+    failed_rows: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     dataset = relationship("Dataset", back_populates="runs")
@@ -113,6 +115,7 @@ class EvalResult(Base):
     output: Mapped[str] = mapped_column(Text)
     latency_ms: Mapped[int] = mapped_column(Integer, default=0)
     tokens: Mapped[int] = mapped_column(Integer, default=0)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     run = relationship("EvalRun", back_populates="results")
     dataset_row = relationship("DatasetRow", back_populates="results")

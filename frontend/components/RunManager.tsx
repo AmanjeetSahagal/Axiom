@@ -15,7 +15,7 @@ export function RunManager() {
   const [model, setModel] = useState("gemini-2.5-flash");
   const [status, setStatus] = useState("Loading runs...");
 
-  async function load() {
+  async function load(options?: { silent?: boolean }) {
     const token = window.localStorage.getItem("axiom-token");
     if (!token) {
       setStatus("Login required.");
@@ -32,7 +32,9 @@ export function RunManager() {
       setRuns(runData);
       setDatasetId((current) => current || datasetData[0]?.id || "");
       setPromptId((current) => current || promptData[0]?.id || "");
-      setStatus(runData.length ? "" : "No runs yet.");
+      if (!options?.silent) {
+        setStatus(runData.length ? "" : "No runs yet.");
+      }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Failed to load runs");
     }
@@ -40,6 +42,16 @@ export function RunManager() {
 
   useEffect(() => {
     void load();
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void load({ silent: true });
+      }
+    }, 4000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
   }, []);
 
   async function onSubmit(event: FormEvent) {
@@ -58,7 +70,7 @@ export function RunManager() {
         evaluators: ["exact", "semantic", "judge"],
       });
       setStatus("Run queued.");
-      await load();
+      await load({ silent: true });
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Failed to create run");
     }
@@ -74,7 +86,7 @@ export function RunManager() {
       setStatus("Seeding demo data...");
       await api.seedDemo(token);
       setStatus("Demo dataset, prompt, and run created.");
-      await load();
+      await load({ silent: true });
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Failed to seed demo");
     }
@@ -109,6 +121,7 @@ export function RunManager() {
               <th className="px-4 py-3">Model</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Rows</th>
+              <th className="px-4 py-3">Failures</th>
               <th className="px-4 py-3">Score</th>
             </tr>
           </thead>
@@ -117,8 +130,9 @@ export function RunManager() {
               <tr key={run.id} className="border-t border-slate-100">
                 <td className="px-4 py-3"><Link href={`/runs/${run.id}`} className="text-ember">{run.id.slice(0, 8)}</Link></td>
                 <td className="px-4 py-3">{run.model}</td>
-                <td className="px-4 py-3 capitalize">{run.status}</td>
+                <td className="px-4 py-3 capitalize">{run.status}{run.status !== "completed" ? "..." : ""}</td>
                 <td className="px-4 py-3">{run.processed_rows}/{run.total_rows}</td>
+                <td className="px-4 py-3">{run.failed_rows}</td>
                 <td className="px-4 py-3">{run.avg_score.toFixed(2)}</td>
               </tr>
             ))}

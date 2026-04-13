@@ -27,6 +27,7 @@ class ResultResponse(BaseModel):
     output: str
     latency_ms: int
     tokens: int
+    error_message: str | None = None
     scores: list[ScoreResponse]
 
     model_config = {"from_attributes": True}
@@ -42,6 +43,8 @@ class RunResponse(BaseModel):
     total_cost: float
     processed_rows: int
     total_rows: int
+    failed_rows: int
+    last_error: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

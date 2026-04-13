@@ -11,22 +11,46 @@ export function RunDetailClient({ id }: { id: string }) {
   const [status, setStatus] = useState("Loading run...");
 
   useEffect(() => {
+    let cancelled = false;
+
     async function load() {
       const token = window.localStorage.getItem("axiom-token");
       if (!token) {
-        setStatus("Login required.");
+        if (!cancelled) {
+          setStatus("Login required.");
+        }
         return;
       }
       try {
         const data = await api.run(token, id);
-        setRun(data);
-        setStatus("");
+        if (!cancelled) {
+          setRun(data);
+          if (data.status === "pending" || data.status === "running") {
+            setStatus(`Run ${data.status}. Refreshing progress automatically...`);
+          } else if (data.status === "failed") {
+            setStatus(data.last_error || "Run failed.");
+          } else {
+            setStatus("");
+          }
+        }
       } catch (error) {
-        setStatus(error instanceof Error ? error.message : "Failed to load run");
+        if (!cancelled) {
+          setStatus(error instanceof Error ? error.message : "Failed to load run");
+        }
       }
     }
 
     void load();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void load();
+      }
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, [id]);
 
   if (!run) {
@@ -39,11 +63,33 @@ export function RunDetailClient({ id }: { id: string }) {
         <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Run Detail</p>
         <h2 className="mt-2 font-display text-4xl text-ink">{run.model}</h2>
         <p className="mt-3 text-slate-600">
-          Status: {run.status} | Rows: {run.processed_rows}/{run.total_rows} | Average score: {run.avg_score.toFixed(2)}
+          Status: {run.status} | Rows: {run.processed_rows}/{run.total_rows} | Failures: {run.failed_rows} | Average score: {run.avg_score.toFixed(2)}
         </p>
+        <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-100">
+          <div
+            className="h-full rounded-full bg-ember transition-all"
+            style={{ width: `${run.total_rows ? (run.processed_rows / run.total_rows) * 100 : 0}%` }}
+          />
+        </div>
+        {status ? <p className="mt-3 text-sm text-slate-500">{status}</p> : null}
+        {run.failed_rows > 0 ? (
+          <p className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">
+            {run.failed_rows} row{run.failed_rows === 1 ? "" : "s"} failed during evaluation. Inspect the result cards below for row-level errors.
+          </p>
+        ) : null}
+        {run.last_error ? (
+          <p className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{run.last_error}</p>
+        ) : null}
       </div>
-      <ResultInspector results={run.results || []} />
+      {run.results?.length ? (
+        <ResultInspector results={run.results || []} />
+      ) : (
+        <div className="rounded-[28px] border border-dashed border-slate-300 bg-white/80 p-8 text-slate-500 shadow-panel">
+          {run.status === "pending" || run.status === "running"
+            ? "The worker has not persisted row results yet."
+            : "No row results were stored for this run."}
+        </div>
+      )}
     </section>
   );
 }
-
