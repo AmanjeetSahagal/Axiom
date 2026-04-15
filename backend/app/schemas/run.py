@@ -65,4 +65,7 @@ class CompareResponse(BaseModel):
     score_delta: float
     latency_delta: float
     cost_delta: float
-    category_breakdown: dict[str, dict[str, float]]
+    failed_rows_delta: int
+    baseline_failed_rows: int
+    candidate_failed_rows: int
+    category_breakdown: dict[str, dict[str, float | int]]

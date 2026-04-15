@@ -7,7 +7,9 @@ import { Comparison } from "@/lib/types";
 export function ComparisonChart({ comparison }: { comparison: Comparison }) {
   const data = Object.entries(comparison.category_breakdown).map(([category, values]) => ({
     category,
-    ...values,
+    baseline: values.baseline_score,
+    candidate: values.candidate_score,
+    delta: values.delta,
   }));
 
   return (

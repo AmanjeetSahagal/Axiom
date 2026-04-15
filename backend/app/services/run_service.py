@@ -163,16 +163,31 @@ def compare_runs(db: Session, baseline_run_id: UUID, candidate_run_id: UUID) -> 
                 categories[result.dataset_row.category or "uncategorized"].append(judge_scores[0])
         return categories
 
+    def category_counts(run: EvalRun) -> dict[str, dict[str, int]]:
+        categories: dict[str, dict[str, int]] = defaultdict(lambda: {"total": 0, "failed": 0})
+        for result in run.results:
+            category = result.dataset_row.category or "uncategorized"
+            categories[category]["total"] += 1
+            if result.error_message:
+                categories[category]["failed"] += 1
+        return categories
+
     baseline_categories = category_scores(baseline)
     candidate_categories = category_scores(candidate)
+    baseline_counts = category_counts(baseline)
+    candidate_counts = category_counts(candidate)
     category_breakdown = {}
-    for category in sorted(set(baseline_categories) | set(candidate_categories)):
+    for category in sorted(set(baseline_categories) | set(candidate_categories) | set(baseline_counts) | set(candidate_counts)):
         baseline_avg = mean(baseline_categories.get(category, [0.0]))
         candidate_avg = mean(candidate_categories.get(category, [0.0]))
         category_breakdown[category] = {
-            "baseline": round(baseline_avg, 4),
-            "candidate": round(candidate_avg, 4),
+            "baseline_score": round(baseline_avg, 4),
+            "candidate_score": round(candidate_avg, 4),
             "delta": round(candidate_avg - baseline_avg, 4),
+            "baseline_count": baseline_counts.get(category, {}).get("total", 0),
+            "candidate_count": candidate_counts.get(category, {}).get("total", 0),
+            "baseline_failed": baseline_counts.get(category, {}).get("failed", 0),
+            "candidate_failed": candidate_counts.get(category, {}).get("failed", 0),
         }
 
     return {
@@ -181,5 +196,8 @@ def compare_runs(db: Session, baseline_run_id: UUID, candidate_run_id: UUID) -> 
         "score_delta": round(candidate.avg_score - baseline.avg_score, 4),
         "latency_delta": round(avg_latency(candidate) - avg_latency(baseline), 2),
         "cost_delta": round(candidate.total_cost - baseline.total_cost, 6),
+        "failed_rows_delta": candidate.failed_rows - baseline.failed_rows,
+        "baseline_failed_rows": baseline.failed_rows,
+        "candidate_failed_rows": candidate.failed_rows,
         "category_breakdown": category_breakdown,
     }

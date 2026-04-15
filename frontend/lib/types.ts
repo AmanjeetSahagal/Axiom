@@ -19,6 +19,12 @@ export type DatasetUploadRow = {
   category?: string | null;
 };
 
+export type DatasetValidationIssue = {
+  row: number;
+  field: string;
+  message: string;
+};
+
 export type PromptTemplate = {
   id: string;
   name: string;
@@ -68,7 +74,21 @@ export type Comparison = {
   score_delta: number;
   latency_delta: number;
   cost_delta: number;
-  category_breakdown: Record<string, { baseline: number; candidate: number; delta: number }>;
+  failed_rows_delta: number;
+  baseline_failed_rows: number;
+  candidate_failed_rows: number;
+  category_breakdown: Record<
+    string,
+    {
+      baseline_score: number;
+      candidate_score: number;
+      delta: number;
+      baseline_count: number;
+      candidate_count: number;
+      baseline_failed: number;
+      candidate_failed: number;
+    }
+  >;
 };
 
 export type AuthUser = {
