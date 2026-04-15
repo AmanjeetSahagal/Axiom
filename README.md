@@ -65,6 +65,13 @@ cp .env.example .env.local
 npm run dev
 ```
 
+If Next.js dev mode starts serving stale chunk errors, run:
+
+```bash
+cd frontend
+npm run dev:clean
+```
+
 Open:
 
 - Frontend: `http://localhost:3000`

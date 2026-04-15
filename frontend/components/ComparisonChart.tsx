@@ -19,13 +19,13 @@ export function ComparisonChart({ comparison }: { comparison: Comparison }) {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="category" />
             <YAxis />
-            <Tooltip />
+            <Tooltip formatter={(value: number) => value.toFixed(2)} />
             <Bar dataKey="baseline" fill="#D4A72C" radius={[6, 6, 0, 0]} />
             <Bar dataKey="candidate" fill="#0F4C3A" radius={[6, 6, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
+      <p className="mt-3 text-sm text-slate-500">Baseline is gold. Candidate is green.</p>
     </div>
   );
 }
-

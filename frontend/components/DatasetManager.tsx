@@ -111,10 +111,29 @@ export function DatasetManager() {
         <div className="rounded-2xl border border-slate-100 bg-white p-4">
           <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Preview</p>
           <p className="mt-2 text-sm text-slate-600">{previewRows.length} rows ready for import</p>
-          {previewRows[0] ? (
-            <pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded-2xl bg-slate-50 p-4 text-xs">
-              {JSON.stringify(previewRows[0], null, 2)}
-            </pre>
+          {previewRows.length ? (
+            <div className="mt-3 overflow-hidden rounded-2xl border border-slate-100">
+              <table className="min-w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-600">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Question</th>
+                    <th className="px-3 py-2 font-medium">Context</th>
+                    <th className="px-3 py-2 font-medium">Expected</th>
+                    <th className="px-3 py-2 font-medium">Category</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewRows.slice(0, 3).map((row, index) => (
+                    <tr key={index} className="border-t border-slate-100 align-top">
+                      <td className="px-3 py-2">{String(row.input.question ?? "")}</td>
+                      <td className="px-3 py-2">{String(row.input.context ?? "")}</td>
+                      <td className="px-3 py-2">{row.expected_output ?? ""}</td>
+                      <td className="px-3 py-2">{row.category ?? ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : null}
         </div>
         <button className="w-fit rounded-full bg-ink px-5 py-3 text-white" type="submit">Save Dataset</button>

@@ -9,11 +9,21 @@ export function RunDashboard({ runs }: { runs: Run[] }) {
   const avgScore = runs.length ? runs.reduce((sum, run) => sum + run.avg_score, 0) / runs.length : 0;
   const totalCost = runs.reduce((sum, run) => sum + run.total_cost, 0);
   const avgLatency = runs.length
-    ? runs.reduce((sum, run) => sum + (run.processed_rows ? 1200 : 0), 0) / runs.length
+    ? runs.reduce((sum, run) => {
+        const rowCount = run.results?.length ?? 0;
+        const runLatency = rowCount
+          ? run.results!.reduce((rowSum, result) => rowSum + result.latency_ms, 0) / rowCount
+          : 0;
+        return sum + runLatency;
+      }, 0) / runs.length
+    : 0;
+  const failureRate = runs.length
+    ? runs.reduce((sum, run) => sum + (run.total_rows ? run.failed_rows / run.total_rows : 0), 0) / runs.length
     : 0;
   const passBreakdown = [
     { name: "Completed", value: runs.filter((run) => run.status === "completed").length },
-    { name: "In Flight", value: runs.filter((run) => run.status !== "completed").length },
+    { name: "In Flight", value: runs.filter((run) => run.status === "pending" || run.status === "running").length },
+    { name: "Failed", value: runs.filter((run) => run.status === "failed").length },
   ];
 
   return (
@@ -22,7 +32,7 @@ export function RunDashboard({ runs }: { runs: Run[] }) {
         <MetricCard label="Average Score" value={avgScore.toFixed(2)} hint="Normalized across runs" />
         <MetricCard label="Run Pass Rate" value={`${Math.round((passBreakdown[0].value / Math.max(runs.length, 1)) * 100)}%`} />
         <MetricCard label="Average Latency" value={`${avgLatency.toFixed(0)} ms`} />
-        <MetricCard label="Total Cost" value={`$${totalCost.toFixed(4)}`} />
+        <MetricCard label="Failure Rate" value={`${Math.round(failureRate * 100)}%`} hint={`Total cost $${totalCost.toFixed(4)}`} />
       </div>
       <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
         <div className="rounded-[28px] border border-black/5 bg-white/80 p-5 shadow-panel">
@@ -54,4 +64,3 @@ export function RunDashboard({ runs }: { runs: Run[] }) {
     </div>
   );
 }
-

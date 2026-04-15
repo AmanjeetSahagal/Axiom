@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from math import sqrt
+import re
 
 from app.services.llm import embed_text, judge_response
 
@@ -11,11 +12,30 @@ class EvaluationScore:
     metadata: dict
 
 
+def _normalize_text(value: str) -> str:
+    normalized = value.strip().lower()
+    normalized = re.sub(r"[^\w\s]", "", normalized)
+    normalized = re.sub(r"\s+", " ", normalized)
+    return normalized
+
+
 def exact_match(output: str, expected: str | None) -> EvaluationScore:
     if not expected:
         return EvaluationScore(score=0.0, passed=False, metadata={"reason": "No expected output"})
-    passed = output.strip() == expected.strip()
-    return EvaluationScore(score=1.0 if passed else 0.0, passed=passed, metadata={})
+    raw_passed = output.strip() == expected.strip()
+    normalized_output = _normalize_text(output)
+    normalized_expected = _normalize_text(expected)
+    normalized_passed = normalized_output == normalized_expected
+    return EvaluationScore(
+        score=1.0 if normalized_passed else 0.0,
+        passed=normalized_passed,
+        metadata={
+            "raw_match": raw_passed,
+            "normalized_match": normalized_passed,
+            "normalized_output": normalized_output,
+            "normalized_expected": normalized_expected,
+        },
+    )
 
 
 def _cosine_similarity(vector_a: list[float], vector_b: list[float]) -> float:
