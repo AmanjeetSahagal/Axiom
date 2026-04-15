@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
 
 from app.api.routes.auth import router as auth_router
 from app.api.routes.compare import router as compare_router
@@ -9,20 +8,6 @@ from app.api.routes.prompts import router as prompts_router
 from app.api.routes.runs import router as runs_router
 from app.api.routes.seed import router as seed_router
 from app.core.config import settings
-from app.db.session import engine
-from app.models.base import Base
-
-Base.metadata.create_all(bind=engine)
-
-
-def apply_startup_schema_patches() -> None:
-    with engine.begin() as connection:
-        connection.execute(text("ALTER TABLE eval_runs ADD COLUMN IF NOT EXISTS failed_rows INTEGER DEFAULT 0"))
-        connection.execute(text("ALTER TABLE eval_runs ADD COLUMN IF NOT EXISTS last_error TEXT"))
-        connection.execute(text("ALTER TABLE eval_results ADD COLUMN IF NOT EXISTS error_message TEXT"))
-
-
-apply_startup_schema_patches()
 
 app = FastAPI(title=settings.app_name)
 app.add_middleware(

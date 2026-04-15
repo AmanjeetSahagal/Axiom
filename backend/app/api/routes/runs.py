@@ -29,7 +29,7 @@ def start_run(
     ).scalar_one_or_none()
     if not dataset or not prompt:
         raise HTTPException(status_code=404, detail="Dataset or prompt not found")
-    run = create_run(db, payload.dataset_id, payload.prompt_template_id, payload.model)
+    run = create_run(db, payload.dataset_id, payload.prompt_template_id, payload.model, payload.evaluators)
     enqueue_run(str(run.id))
     return run
 

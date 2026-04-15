@@ -12,16 +12,36 @@ from app.services.llm import call_model
 from app.services.prompt_renderer import render_template
 
 
-def create_run(db: Session, dataset_id: UUID, prompt_template_id: UUID, model: str) -> EvalRun:
+def normalize_evaluators(evaluators: list[str] | None) -> list[ScoreType]:
+    selected = evaluators or [score_type.value for score_type in ScoreType]
+    valid = {score_type.value: score_type for score_type in ScoreType}
+    unknown = sorted(set(selected) - set(valid))
+    if unknown:
+        raise ValueError(f"Unsupported evaluators: {', '.join(unknown)}")
+    normalized = [valid[evaluator] for evaluator in selected if evaluator in valid]
+    if not normalized:
+        raise ValueError("At least one evaluator must be selected")
+    return normalized
+
+
+def normalized_score_value(score_type: ScoreType, score: float) -> float:
+    if score_type == ScoreType.judge:
+        return score / 5.0
+    return score
+
+
+def create_run(db: Session, dataset_id: UUID, prompt_template_id: UUID, model: str, evaluators: list[str] | None = None) -> EvalRun:
     dataset = db.get(Dataset, dataset_id)
     prompt = db.get(PromptTemplate, prompt_template_id)
     if not dataset or not prompt:
         raise ValueError("Dataset or prompt template not found")
+    selected_evaluators = normalize_evaluators(evaluators)
 
     run = EvalRun(
         dataset_id=dataset.id,
         prompt_template_id=prompt.id,
         model=model,
+        selected_evaluators=[score_type.value for score_type in selected_evaluators],
         status=RunStatus.pending,
         total_rows=len(dataset.rows),
     )
@@ -45,6 +65,7 @@ def process_run(db: Session, run_id: UUID) -> EvalRun:
 
     score_totals: list[float] = []
     total_cost = 0.0
+    selected_evaluators = normalize_evaluators(run.selected_evaluators)
 
     try:
         for row in run.dataset.rows:
@@ -67,14 +88,13 @@ def process_run(db: Session, run_id: UUID) -> EvalRun:
                 db.add(result)
                 db.flush()
 
-                exact = exact_match(output, row.expected_output)
-                semantic = semantic_similarity(output, row.expected_output)
-                judge = llm_judge(rendered_user, output, row.expected_output, run.model)
-                evaluations = {
-                    ScoreType.exact: exact,
-                    ScoreType.semantic: semantic,
-                    ScoreType.judge: judge,
-                }
+                evaluations = {}
+                if ScoreType.exact in selected_evaluators:
+                    evaluations[ScoreType.exact] = exact_match(output, row.expected_output)
+                if ScoreType.semantic in selected_evaluators:
+                    evaluations[ScoreType.semantic] = semantic_similarity(output, row.expected_output)
+                if ScoreType.judge in selected_evaluators:
+                    evaluations[ScoreType.judge] = llm_judge(rendered_user, output, row.expected_output, run.model)
                 for score_type, evaluation in evaluations.items():
                     db.add(
                         EvaluatorScore(
@@ -86,7 +106,7 @@ def process_run(db: Session, run_id: UUID) -> EvalRun:
                         )
                     )
 
-                row_avg = mean([exact.score, semantic.score, judge.score / 5.0])
+                row_avg = mean([normalized_score_value(score_type, evaluation.score) for score_type, evaluation in evaluations.items()])
                 score_totals.append(row_avg)
                 total_cost += estimate_cost(run.model, prompt_tokens, output_tokens)
             except Exception as exc:
@@ -102,7 +122,7 @@ def process_run(db: Session, run_id: UUID) -> EvalRun:
                 )
                 db.add(result)
                 db.flush()
-                for score_type in (ScoreType.exact, ScoreType.semantic, ScoreType.judge):
+                for score_type in selected_evaluators:
                     db.add(
                         EvaluatorScore(
                             eval_result_id=result.id,
@@ -158,9 +178,9 @@ def compare_runs(db: Session, baseline_run_id: UUID, candidate_run_id: UUID) -> 
     def category_scores(run: EvalRun) -> dict[str, list[float]]:
         categories: dict[str, list[float]] = defaultdict(list)
         for result in run.results:
-            judge_scores = [score.score / 5.0 for score in result.scores if score.type == ScoreType.judge]
-            if judge_scores:
-                categories[result.dataset_row.category or "uncategorized"].append(judge_scores[0])
+            normalized_scores = [normalized_score_value(score.type, score.score) for score in result.scores]
+            if normalized_scores:
+                categories[result.dataset_row.category or "uncategorized"].append(mean(normalized_scores))
         return categories
 
     def category_counts(run: EvalRun) -> dict[str, dict[str, int]]:

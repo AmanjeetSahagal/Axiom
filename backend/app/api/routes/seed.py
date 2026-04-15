@@ -82,7 +82,7 @@ def seed_demo(
     db.refresh(dataset)
     db.refresh(prompt)
 
-    run = create_run(db, dataset.id, prompt.id, settings.gemini_model)
+    run = create_run(db, dataset.id, prompt.id, settings.gemini_model, ["exact", "semantic", "judge"])
     enqueue_run(str(run.id))
     return {
         "dataset": DatasetResponse.model_validate(dataset),

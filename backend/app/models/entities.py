@@ -26,6 +26,10 @@ class ScoreType(str, enum.Enum):
     judge = "judge"
 
 
+def default_evaluators() -> list[str]:
+    return [score_type.value for score_type in ScoreType]
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -89,6 +93,7 @@ class EvalRun(Base):
         UUID(as_uuid=True), ForeignKey("prompt_templates.id"), index=True
     )
     model: Mapped[str] = mapped_column(String(120))
+    selected_evaluators: Mapped[list[str]] = mapped_column(JSON, default=default_evaluators)
     status: Mapped[RunStatus] = mapped_column(Enum(RunStatus), default=RunStatus.pending)
     avg_score: Mapped[float] = mapped_column(Float, default=0.0)
     total_cost: Mapped[float] = mapped_column(Float, default=0.0)

@@ -39,6 +39,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
+alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
@@ -82,15 +83,16 @@ Open:
 Use three terminals:
 
 1. `docker compose up -d postgres redis`
-2. `cd backend && source .venv/bin/activate && uvicorn app.main:app --reload`
-3. `cd backend && source .venv/bin/activate && celery -A app.tasks.worker.celery_app worker --loglevel=info`
-4. `cd frontend && npm run dev`
+2. `cd backend && source .venv/bin/activate && alembic upgrade head`
+3. `cd backend && source .venv/bin/activate && uvicorn app.main:app --reload`
+4. `cd backend && source .venv/bin/activate && celery -A app.tasks.worker.celery_app worker --loglevel=info`
+5. `cd frontend && npm run dev`
 
 ## Current Caveats
 
 - Generation, embeddings, and judge scoring use Gemini from `backend/app/services/llm.py` and `backend/app/services/evaluators.py`.
 - The frontend stores the app token in `localStorage` after Firebase Google sign-in.
-- SQLAlchemy tables are created automatically on API startup. Alembic migrations are not set up yet.
+- Run `alembic upgrade head` before starting the API after schema changes.
 
 ## Firebase Auth Setup
 

@@ -38,6 +38,7 @@ class RunResponse(BaseModel):
     dataset_id: UUID
     prompt_template_id: UUID
     model: str
+    selected_evaluators: list[str]
     status: str
     avg_score: float
     total_cost: float
