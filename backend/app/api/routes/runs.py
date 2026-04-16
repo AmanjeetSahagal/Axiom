@@ -44,7 +44,10 @@ def start_run(
         raise HTTPException(status_code=404, detail="Prompt not found")
     if run_type == RunType.imported and not any(row.model_output for row in dataset.rows):
         raise HTTPException(status_code=400, detail="Imported runs require at least one dataset row with model_output")
-    run = create_run(db, payload.dataset_id, payload.prompt_template_id, payload.model, payload.evaluators, run_type=run_type)
+    try:
+        run = create_run(db, payload.dataset_id, payload.prompt_template_id, payload.model, payload.evaluators, run_type=run_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     enqueue_run(str(run.id))
     return run
 

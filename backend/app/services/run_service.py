@@ -9,6 +9,7 @@ from app.models import Dataset, DatasetRow, EvalResult, EvalRun, EvaluatorScore,
 from app.services.cost import estimate_cost
 from app.services.evaluators import exact_match, llm_judge, semantic_similarity
 from app.services.llm import call_model
+from app.services.provider_keys import get_provider_key_set, model_provider, provider_available
 from app.services.prompt_renderer import render_template
 
 
@@ -43,6 +44,10 @@ def create_run(
     if not dataset or (run_type == RunType.generated and not prompt):
         raise ValueError("Dataset or prompt template not found")
     selected_evaluators = normalize_evaluators(evaluators)
+    if run_type == RunType.generated:
+        provider = model_provider(model)
+        if not provider_available(db, dataset.user_id, provider):
+            raise ValueError(f"No configured API key for {provider.value}. Add one in Settings.")
 
     run = EvalRun(
         dataset_id=dataset.id,
@@ -74,6 +79,7 @@ def process_run(db: Session, run_id: UUID) -> EvalRun:
     score_totals: list[float] = []
     total_cost = 0.0
     selected_evaluators = normalize_evaluators(run.selected_evaluators)
+    key_set = get_provider_key_set(db, run.dataset.user_id)
 
     try:
         for row in run.dataset.rows:
@@ -92,6 +98,7 @@ def process_run(db: Session, run_id: UUID) -> EvalRun:
                         run.prompt_template.system_prompt,
                         rendered_user,
                         run.model,
+                        key_set,
                     )
                     total_tokens = prompt_tokens + output_tokens
                 result = EvalResult(
@@ -109,9 +116,9 @@ def process_run(db: Session, run_id: UUID) -> EvalRun:
                 if ScoreType.exact in selected_evaluators:
                     evaluations[ScoreType.exact] = exact_match(output, row.expected_output)
                 if ScoreType.semantic in selected_evaluators:
-                    evaluations[ScoreType.semantic] = semantic_similarity(output, row.expected_output)
+                    evaluations[ScoreType.semantic] = semantic_similarity(output, row.expected_output, key_set)
                 if ScoreType.judge in selected_evaluators:
-                    evaluations[ScoreType.judge] = llm_judge(rendered_user, output, row.expected_output, run.model)
+                    evaluations[ScoreType.judge] = llm_judge(rendered_user, output, row.expected_output, run.model, key_set)
                 for score_type, evaluation in evaluations.items():
                     db.add(
                         EvaluatorScore(

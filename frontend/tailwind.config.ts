@@ -12,8 +12,8 @@ const config: Config = {
         gold: "#D4A72C",
       },
       fontFamily: {
-        display: ["Georgia", "serif"],
-        body: ["ui-sans-serif", "system-ui", "sans-serif"],
+        display: ["Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Times New Roman", "serif"],
+        body: ["Avenir Next", "Avenir", "Segoe UI", "Helvetica Neue", "sans-serif"],
       },
       boxShadow: {
         panel: "0 18px 40px rgba(16, 24, 40, 0.08)",
@@ -24,4 +24,3 @@ const config: Config = {
 };
 
 export default config;
-

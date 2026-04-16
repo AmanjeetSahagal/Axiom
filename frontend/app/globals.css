@@ -20,7 +20,10 @@ body {
     radial-gradient(circle at top left, rgba(212, 167, 44, 0.18), transparent 28%),
     radial-gradient(circle at top right, rgba(15, 76, 58, 0.12), transparent 24%),
     linear-gradient(180deg, #fcfbf8 0%, var(--bg) 100%);
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-family: "Avenir Next", Avenir, "Segoe UI", "Helvetica Neue", sans-serif;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 * {

@@ -4,11 +4,13 @@ from app.models.entities import (
     EvalResult,
     EvalRun,
     EvaluatorScore,
+    ProviderType,
     PromptTemplate,
     RunStatus,
     RunType,
     ScoreType,
     User,
+    UserProviderKey,
 )
 
 __all__ = [
@@ -17,9 +19,11 @@ __all__ = [
     "EvalResult",
     "EvalRun",
     "EvaluatorScore",
+    "ProviderType",
     "PromptTemplate",
     "RunStatus",
     "RunType",
     "ScoreType",
     "User",
+    "UserProviderKey",
 ]

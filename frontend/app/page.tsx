@@ -1,9 +1,12 @@
 import Link from "next/link";
 
+import { LogoMark } from "@/components/LogoMark";
+
 export default function HomePage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-5xl flex-col justify-center px-6 py-16">
-      <p className="text-sm uppercase tracking-[0.3em] text-ember">Axiom</p>
+      <LogoMark size="lg" />
+      <p className="mt-6 text-sm uppercase tracking-[0.3em] text-ember">Axiom</p>
       <h1 className="mt-4 max-w-4xl font-display text-6xl leading-tight text-ink">
         Turn LLM experimentation into a repeatable evaluation workflow.
       </h1>

@@ -4,22 +4,22 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 
 import { api } from "@/lib/api";
-import { Dataset, PromptTemplate, Run } from "@/lib/types";
+import { Dataset, PromptTemplate, ProviderKeyStatus, Run } from "@/lib/types";
 
 const modelCatalog = [
   {
     provider: "OpenAI",
     models: [
-      { value: "gpt-4.1", label: "GPT-4.1", hint: "Flagship general-purpose OpenAI model.", generatedAvailable: false },
-      { value: "gpt-4.1-mini", label: "GPT-4.1 Mini", hint: "Smaller, cheaper OpenAI general model.", generatedAvailable: false },
-      { value: "gpt-4o", label: "GPT-4o", hint: "Fast multimodal OpenAI model.", generatedAvailable: false },
+      { value: "gpt-4.1", label: "GPT-4.1", hint: "Flagship general-purpose OpenAI model.", generatedAvailable: true },
+      { value: "gpt-4.1-mini", label: "GPT-4.1 Mini", hint: "Smaller, cheaper OpenAI general model.", generatedAvailable: true },
+      { value: "gpt-4o", label: "GPT-4o", hint: "Fast multimodal OpenAI model.", generatedAvailable: true },
     ],
   },
   {
     provider: "Anthropic",
     models: [
-      { value: "claude-3.5-sonnet", label: "Claude 3.5 Sonnet", hint: "Strong reasoning and writing model.", generatedAvailable: false },
-      { value: "claude-3.7-sonnet", label: "Claude 3.7 Sonnet", hint: "Newer Anthropic Sonnet-class model.", generatedAvailable: false },
+      { value: "claude-3.5-sonnet", label: "Claude 3.5 Sonnet", hint: "Strong reasoning and writing model.", generatedAvailable: true },
+      { value: "claude-3.7-sonnet", label: "Claude 3.7 Sonnet", hint: "Newer Anthropic Sonnet-class model.", generatedAvailable: true },
     ],
   },
   {
@@ -66,6 +66,7 @@ export function RunManager() {
   const [runType, setRunType] = useState<"generated" | "imported">("generated");
   const [model, setModel] = useState("gemini-2.5-flash");
   const [selectedEvaluators, setSelectedEvaluators] = useState<string[]>(["exact", "semantic", "judge"]);
+  const [providerStatuses, setProviderStatuses] = useState<ProviderKeyStatus[]>([]);
   const [status, setStatus] = useState("Loading runs...");
 
   const selectedDataset = datasets.find((dataset) => dataset.id === datasetId);
@@ -75,6 +76,17 @@ export function RunManager() {
   const hasImportedOutputs = Boolean(selectedDataset?.rows.some((row) => row.model_output));
   const missingVariables = promptVariables.filter((variable) => !datasetFields.includes(variable));
   const selectedModel = allModels.find((option) => option.value === model);
+  const selectedProviderStatus = providerStatuses.find(
+    (providerStatus) =>
+      providerStatus.provider ===
+      (model.startsWith("gpt-")
+        ? "openai"
+        : model.startsWith("claude-")
+          ? "anthropic"
+          : model.startsWith("gemini-")
+            ? "gemini"
+            : ""),
+  );
 
   async function load(options?: { silent?: boolean }) {
     const token = window.localStorage.getItem("axiom-token");
@@ -83,14 +95,16 @@ export function RunManager() {
       return;
     }
     try {
-      const [datasetData, promptData, runData] = await Promise.all([
+      const [datasetData, promptData, runData, providerData] = await Promise.all([
         api.datasets(token),
         api.prompts(token),
         api.runs(token),
+        api.providerKeys(token),
       ]);
       setDatasets(datasetData);
       setPrompts(promptData);
       setRuns(runData);
+      setProviderStatuses(providerData);
       setDatasetId((current) => current || datasetData[0]?.id || "");
       setPromptId((current) => current || promptData[0]?.id || "");
       if (!options?.silent) {
@@ -144,7 +158,11 @@ export function RunManager() {
         return;
       }
       if (runType === "generated" && !selectedModel?.generatedAvailable) {
-        setStatus("That model is currently available for imported runs only. Generated runs are wired only for Gemini right now.");
+        setStatus("That model is currently available for imported runs only.");
+        return;
+      }
+      if (runType === "generated" && selectedProviderStatus && !selectedProviderStatus.configured) {
+        setStatus(`No ${selectedProviderStatus.provider} key is configured. Add one in Settings before launching this generated run.`);
         return;
       }
       setStatus("Launching run...");
@@ -220,21 +238,33 @@ export function RunManager() {
             {prompts.map((prompt) => <option key={prompt.id} value={prompt.id}>{prompt.name} v{prompt.version}</option>)}
           </select>
         </div>
-        <div className="rounded-2xl border border-slate-200 p-4 md:col-span-2">
+        <div className="rounded-2xl border border-slate-200 bg-[#f7f2ee] p-4 md:col-span-2">
           <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Model</p>
           <div className="mt-3 space-y-4">
             {modelCatalog.map((group) => (
-              <div key={group.provider} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{group.provider}</p>
+              <div key={group.provider} className="rounded-2xl border border-[#d8c7bc] bg-[#ece3dc] p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-700">{group.provider}</p>
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   {group.models.map((option) => {
+                    const providerId =
+                      option.value.startsWith("gpt-")
+                        ? "openai"
+                        : option.value.startsWith("claude-")
+                          ? "anthropic"
+                          : option.value.startsWith("gemini-")
+                            ? "gemini"
+                            : null;
+                    const providerStatus = providerStatuses.find((status) => status.provider === providerId);
+                    const missingGeneratedKey = runType === "generated" && option.generatedAvailable && providerStatus && !providerStatus.configured;
                     const importOnly = runType === "generated" && !option.generatedAvailable;
                     return (
                       <label
                         key={option.value}
                         className={`rounded-2xl border p-4 ${
-                          model === option.value ? "border-ink bg-white" : "border-slate-200 bg-white"
-                        } ${importOnly ? "opacity-70" : ""}`}
+                          model === option.value
+                            ? "border-ember bg-[#fff4ee] shadow-sm ring-2 ring-ember/20"
+                            : "border-slate-300 bg-white"
+                        } ${importOnly || missingGeneratedKey ? "bg-slate-100/80 opacity-75" : "hover:border-ember/40 hover:bg-[#fff8f4]"}`}
                       >
                         <input
                           className="sr-only"
@@ -245,15 +275,28 @@ export function RunManager() {
                           onChange={(e) => setModel(e.target.value)}
                         />
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-medium text-slate-900">{option.label}</p>
+                          <p className="font-medium text-slate-950">{option.label}</p>
                           <span className={`rounded-full px-2 py-1 text-[11px] ${
-                            option.generatedAvailable ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                            option.generatedAvailable
+                              ? missingGeneratedKey
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-emerald-100 text-emerald-800"
+                              : "bg-slate-200 text-slate-700"
                           }`}>
-                            {option.generatedAvailable ? "generated + imported" : "import only"}
+                            {option.generatedAvailable
+                              ? missingGeneratedKey
+                                ? "add key to generate"
+                                : "generated + imported"
+                              : "import only"}
                           </span>
                         </div>
-                        <p className="mt-1 text-sm text-slate-600">{option.hint}</p>
-                        <p className="mt-2 font-mono text-xs text-slate-500">{option.value}</p>
+                        <p className="mt-1 text-sm text-slate-700">{option.hint}</p>
+                        <p className="mt-2 font-mono text-xs text-slate-600">{option.value}</p>
+                        {option.generatedAvailable && providerStatus ? (
+                          <p className="mt-2 text-xs text-slate-600">
+                            Provider key: {providerStatus.configured ? `${providerStatus.source} ${providerStatus.key_hint ?? ""}`.trim() : "missing"}
+                          </p>
+                        ) : null}
                       </label>
                     );
                   })}
@@ -262,7 +305,11 @@ export function RunManager() {
             ))}
           </div>
           <p className="mt-3 text-sm text-slate-500">
-            Generated runs are currently wired for Gemini models. The broader catalog is available for imported runs now and future provider integrations later.
+            Generated runs are available when the provider has a configured API key. Manage keys in{" "}
+            <Link href="/settings" className="text-ember">
+              Settings
+            </Link>
+            .
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200 p-4 md:col-span-2">

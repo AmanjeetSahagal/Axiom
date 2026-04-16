@@ -22,7 +22,8 @@ export function DashboardClient() {
         return;
       }
       try {
-        const data = await api.runs(token);
+        const runSummaries = await api.runs(token);
+        const data = await Promise.all(runSummaries.map((run) => api.run(token, run.id)));
         if (!cancelled) {
           setRuns(data);
           setStatus(data.length ? "" : "No runs yet. Seed demo data or launch one.");

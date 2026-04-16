@@ -1,4 +1,4 @@
-import { AuthResponse, Comparison, Dataset, DatasetUploadRow, PromptTemplate, Run } from "@/lib/types";
+import { AuthResponse, Comparison, Dataset, DatasetUploadRow, PromptTemplate, ProviderKeyStatus, Run } from "@/lib/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -31,6 +31,29 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ id_token }),
     }),
+  providerKeys: (token: string) => request<ProviderKeyStatus[]>("/provider-keys", { token }),
+  saveProviderKey: (
+    token: string,
+    payload: { provider: "openai" | "anthropic" | "gemini"; api_key: string },
+  ) =>
+    request<{ provider: string; key_hint: string }>("/provider-keys", {
+      method: "PUT",
+      token,
+      body: JSON.stringify(payload),
+    }),
+  deleteProviderKey: async (token: string, provider: "openai" | "anthropic" | "gemini") => {
+    const response = await fetch(`${API_URL}/provider-keys/${provider}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      const message = await response.text();
+      throw new Error(message || `Request failed: ${response.status}`);
+    }
+  },
   datasets: (token: string) => request<Dataset[]>("/datasets", { token }),
   createDataset: (
     token: string,

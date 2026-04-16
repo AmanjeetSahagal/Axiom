@@ -45,6 +45,27 @@ class User(Base):
 
     datasets = relationship("Dataset", back_populates="user", cascade="all, delete-orphan")
     prompts = relationship("PromptTemplate", back_populates="user", cascade="all, delete-orphan")
+    provider_keys = relationship("UserProviderKey", back_populates="user", cascade="all, delete-orphan")
+
+
+class ProviderType(str, enum.Enum):
+    openai = "openai"
+    anthropic = "anthropic"
+    gemini = "gemini"
+
+
+class UserProviderKey(Base):
+    __tablename__ = "user_provider_keys"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=default_uuid)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), index=True)
+    provider: Mapped[ProviderType] = mapped_column(Enum(ProviderType), index=True)
+    encrypted_api_key: Mapped[str] = mapped_column(Text)
+    key_hint: Mapped[str] = mapped_column(String(12))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="provider_keys")
 
 
 class Dataset(Base):

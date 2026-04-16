@@ -106,3 +106,10 @@ export type AuthResponse = {
   token_type: string;
   user: AuthUser;
 };
+
+export type ProviderKeyStatus = {
+  provider: "openai" | "anthropic" | "gemini";
+  configured: boolean;
+  source: "user" | "environment" | "missing";
+  key_hint?: string | null;
+};
