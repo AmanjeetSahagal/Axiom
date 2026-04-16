@@ -17,10 +17,40 @@ BASE_RETRY_DELAY_SECONDS = 1.0
 
 
 class LLMProviderError(RuntimeError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        provider: str,
+        status_code: int | None = None,
+        retryable: bool = False,
+        provider_message: str | None = None,
+        provider_status: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.provider = provider
+        self.status_code = status_code
+        self.retryable = retryable
+        self.provider_message = provider_message
+        self.provider_status = provider_status
 
 
-def _post_with_retries(url: str, headers: dict[str, str], payload: dict) -> dict:
+def _extract_error_fields(response: httpx.Response) -> tuple[str, str | None]:
+    try:
+        payload = response.json()
+    except Exception:
+        text = response.text.strip() or f"HTTP {response.status_code}"
+        return text, None
+
+    error = payload.get("error")
+    if isinstance(error, dict):
+        message = error.get("message") or response.text.strip() or f"HTTP {response.status_code}"
+        provider_status = error.get("status")
+        return str(message), str(provider_status) if provider_status else None
+    return response.text.strip() or f"HTTP {response.status_code}", None
+
+
+def _post_with_retries(url: str, headers: dict[str, str], payload: dict, *, provider: str) -> dict:
     last_error: Exception | None = None
     for attempt in range(MAX_PROVIDER_RETRIES + 1):
         try:
@@ -31,14 +61,51 @@ def _post_with_retries(url: str, headers: dict[str, str], payload: dict) -> dict
             if response.status_code in RETRYABLE_STATUS_CODES and attempt < MAX_PROVIDER_RETRIES:
                 time.sleep(BASE_RETRY_DELAY_SECONDS * (2**attempt))
                 continue
-            raise LLMProviderError(response.text)
+            provider_message, provider_status = _extract_error_fields(response)
+            message = f"{provider.title()} request failed"
+            if response.status_code:
+                message += f" ({response.status_code}"
+                if provider_status:
+                    message += f" {provider_status}"
+                message += ")"
+            message += f": {provider_message}"
+            raise LLMProviderError(
+                message,
+                provider=provider,
+                status_code=response.status_code,
+                retryable=response.status_code in RETRYABLE_STATUS_CODES,
+                provider_message=provider_message,
+                provider_status=provider_status,
+            )
         except (httpx.TimeoutException, httpx.NetworkError) as exc:
             last_error = exc
             if attempt < MAX_PROVIDER_RETRIES:
                 time.sleep(BASE_RETRY_DELAY_SECONDS * (2**attempt))
                 continue
-            raise LLMProviderError(f"Provider request failed after retries: {exc}") from exc
-    raise LLMProviderError(f"Provider request failed after retries: {last_error}")
+            raise LLMProviderError(
+                f"{provider.title()} request failed after retries: {exc}",
+                provider=provider,
+                retryable=True,
+                provider_message=str(exc),
+            ) from exc
+    raise LLMProviderError(
+        f"{provider.title()} request failed after retries: {last_error}",
+        provider=provider,
+        retryable=True,
+        provider_message=str(last_error) if last_error else None,
+    )
+
+
+def provider_error_metadata(exc: Exception) -> dict:
+    if isinstance(exc, LLMProviderError):
+        return {
+            "provider": exc.provider,
+            "status_code": exc.status_code,
+            "retryable": exc.retryable,
+            "provider_message": exc.provider_message,
+            "provider_status": exc.provider_status,
+        }
+    return {}
 
 
 def _require_key(provider: ProviderType, key_set: ProviderKeySet) -> str:
@@ -115,6 +182,7 @@ def _call_gemini(system_prompt: str, user_prompt: str, model: str, api_key: str)
         f"{GEMINI_API_BASE}/models/{model}:generateContent",
         {"Content-Type": "application/json", "x-goog-api-key": api_key},
         payload,
+        provider="gemini",
     )
     text = _extract_gemini_text(response_json)
     prompt_tokens, output_tokens = _gemini_usage_tokens(response_json)
@@ -135,6 +203,7 @@ def _call_openai(system_prompt: str, user_prompt: str, model: str, api_key: str)
         f"{OPENAI_API_BASE}/chat/completions",
         {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
         payload,
+        provider="openai",
     )
     text = _extract_openai_text(response_json)
     prompt_tokens, output_tokens = _openai_usage_tokens(response_json)
@@ -158,6 +227,7 @@ def _call_anthropic(system_prompt: str, user_prompt: str, model: str, api_key: s
             "anthropic-version": "2023-06-01",
         },
         payload,
+        provider="anthropic",
     )
     text = _extract_anthropic_text(response_json)
     prompt_tokens, output_tokens = _anthropic_usage_tokens(response_json)
@@ -183,6 +253,7 @@ def embed_text(text: str, key_set: ProviderKeySet) -> list[float]:
             f"{OPENAI_API_BASE}/embeddings",
             {"Content-Type": "application/json", "Authorization": f"Bearer {key_set.openai}"},
             {"model": settings.openai_embedding_model, "input": text},
+            provider="openai",
         )
         data = response_json.get("data", [])
         if data:
@@ -192,6 +263,7 @@ def embed_text(text: str, key_set: ProviderKeySet) -> list[float]:
             f"{GEMINI_API_BASE}/models/{settings.gemini_embedding_model}:embedContent",
             {"Content-Type": "application/json", "x-goog-api-key": key_set.gemini},
             {"content": {"parts": [{"text": text}]}},
+            provider="gemini",
         )
         return response_json.get("embedding", {}).get("values", [])
     return []
@@ -221,6 +293,7 @@ def judge_response(prompt: str, output: str, expected: str | None, model: str, k
                 "contents": [{"role": "user", "parts": [{"text": judge_prompt}]}],
                 "generationConfig": {"responseMimeType": "application/json"},
             },
+            provider="gemini",
         )
         prompt_tokens, output_tokens = _gemini_usage_tokens(response_json)
         return _parse_json_text(_extract_gemini_text(response_json)), prompt_tokens, output_tokens
@@ -237,6 +310,7 @@ def judge_response(prompt: str, output: str, expected: str | None, model: str, k
                 ],
                 "response_format": {"type": "json_object"},
             },
+            provider="openai",
         )
         prompt_tokens, output_tokens = _openai_usage_tokens(response_json)
         return _parse_json_text(_extract_openai_text(response_json)), prompt_tokens, output_tokens
@@ -255,6 +329,7 @@ def judge_response(prompt: str, output: str, expected: str | None, model: str, k
                 "max_tokens": 512,
                 "messages": [{"role": "user", "content": judge_prompt}],
             },
+            provider="anthropic",
         )
         prompt_tokens, output_tokens = _anthropic_usage_tokens(response_json)
         return _parse_json_text(_extract_anthropic_text(response_json)), prompt_tokens, output_tokens

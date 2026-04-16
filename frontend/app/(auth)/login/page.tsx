@@ -25,7 +25,7 @@ export default function LoginPage() {
       const result = await api.googleLogin(firebaseToken);
       localStorage.setItem("axiom-token", result.access_token);
       setStatus("Authenticated with Google. Redirecting...");
-      router.push("/runs");
+      router.push("/dashboard");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Request failed");
     }
@@ -35,7 +35,7 @@ export default function LoginPage() {
     <main className="mx-auto flex min-h-screen max-w-md items-center px-6 py-16">
       <section className="w-full rounded-[32px] border border-black/5 bg-white/85 p-8 shadow-panel">
         <LogoMark size="md" />
-        <p className="text-sm uppercase tracking-[0.3em] text-ember">Access</p>
+        <p className="mt-6 text-sm uppercase tracking-[0.3em] text-ember">Access</p>
         <h1 className="mt-3 font-display text-4xl text-ink">Continue with Google</h1>
         <p className="mt-4 text-slate-600">
           Sign in with your Google account through Firebase Auth. Axiom will provision your local user record automatically.

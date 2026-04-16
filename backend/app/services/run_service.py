@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.models import Dataset, DatasetRow, EvalResult, EvalRun, EvaluatorScore, PromptTemplate, RunStatus, RunType, ScoreType
 from app.services.cost import estimate_cost
 from app.services.evaluators import exact_match, llm_judge, semantic_similarity
-from app.services.llm import call_model
+from app.services.llm import call_model, provider_error_metadata
 from app.services.provider_keys import get_provider_key_set, model_provider, provider_available
 from app.services.prompt_renderer import render_template
 
@@ -135,6 +135,7 @@ def process_run(db: Session, run_id: UUID) -> EvalRun:
                 if run.run_type == RunType.generated:
                     total_cost += estimate_cost(run.model, prompt_tokens, output_tokens)
             except Exception as exc:
+                error_details = provider_error_metadata(exc)
                 error_message = str(exc)
                 result = EvalResult(
                     run_id=run.id,
@@ -156,6 +157,7 @@ def process_run(db: Session, run_id: UUID) -> EvalRun:
                             passed=False,
                             score_metadata={
                                 "error": error_message,
+                                **error_details,
                                 "reason": "Row evaluation failed",
                             },
                         )
