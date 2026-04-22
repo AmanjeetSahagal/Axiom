@@ -80,6 +80,7 @@ export function CopilotClient() {
   const [status, setStatus] = useState("Connecting to copilot...");
   const [isSending, setIsSending] = useState(false);
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
 
   const apiBase = useMemo(() => getCopilotApiBase().replace(/\/$/, ""), []);
 
@@ -222,6 +223,47 @@ export function CopilotClient() {
     }
   }
 
+  async function deleteConversation(targetSessionId: string) {
+    if (!apiBase || deletingSessionId) {
+      return;
+    }
+
+    setDeletingSessionId(targetSessionId);
+    setStatus("Deleting chat...");
+
+    try {
+      await fetch(`${apiBase}/api/session/${targetSessionId}`, { method: "DELETE" });
+
+      const nextConversations = conversations.filter((conversation) => conversation.sessionId !== targetSessionId);
+      setConversations(nextConversations);
+      writeStoredConversations(nextConversations);
+
+      if (sessionId !== targetSessionId) {
+        setStatus("");
+        return;
+      }
+
+      const nextSessionId = nextConversations[0]?.sessionId ?? null;
+
+      if (nextSessionId) {
+        window.localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, nextSessionId);
+        await loadConversation(nextSessionId);
+      } else {
+        window.localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+        setSessionId(null);
+        setMessages([]);
+        setInput("");
+        await createConversation();
+      }
+
+      setStatus("");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Failed to delete conversation");
+    } finally {
+      setDeletingSessionId(null);
+    }
+  }
+
   async function sendMessage(message: string) {
     if (!sessionId || !apiBase) {
       return;
@@ -303,10 +345,8 @@ export function CopilotClient() {
               conversations.map((conversation) => {
                 const isActive = conversation.sessionId === sessionId;
                 return (
-                  <button
+                  <div
                     key={conversation.sessionId}
-                    type="button"
-                    onClick={() => void loadConversation(conversation.sessionId)}
                     className={`block w-full rounded-2xl border px-4 py-3 text-left transition ${
                       isActive
                         ? "border-ember/30 bg-[#fff5ee] shadow-sm"
@@ -314,12 +354,30 @@ export function CopilotClient() {
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <p className={`text-sm font-medium ${isActive ? "text-ink" : "text-slate-700"}`}>{conversation.title}</p>
-                      <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                        {formatConversationTime(conversation.updatedAt)}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void loadConversation(conversation.sessionId)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <p className={`truncate pr-2 text-sm font-medium ${isActive ? "text-ink" : "text-slate-700"}`}>
+                            {conversation.title}
+                          </p>
+                          <span className="shrink-0 text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                            {formatConversationTime(conversation.updatedAt)}
+                          </span>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        className="shrink-0 rounded-full px-2 py-1 text-xs uppercase tracking-[0.18em] text-slate-400 transition hover:bg-white hover:text-rose-600"
+                        onClick={() => void deleteConversation(conversation.sessionId)}
+                        disabled={deletingSessionId === conversation.sessionId}
+                      >
+                        {deletingSessionId === conversation.sessionId ? "..." : "Delete"}
+                      </button>
                     </div>
-                  </button>
+                  </div>
                 );
               })
             ) : (
