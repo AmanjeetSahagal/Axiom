@@ -50,11 +50,11 @@ export default function HomePage() {
               Run structured datasets, inspect failures, and compare prompts, models, and imported outputs without falling back to manual QA.
             </p>
             <div className="mt-10 flex flex-wrap justify-center gap-4">
-              <Link href="/dashboard" className="btn-primary px-7 py-3.5">
-                Open Dashboard
+              <Link href="/copilot" className="btn-primary px-7 py-3.5">
+                Try Copilot Demo
               </Link>
-              <Link href="/login" className="btn-secondary px-7 py-3.5">
-                Continue with Google
+              <Link href="/dashboard" className="btn-secondary px-7 py-3.5">
+                Explore Dashboard
               </Link>
             </div>
           </div>
@@ -110,8 +110,8 @@ export default function HomePage() {
             Use Axiom to measure what changed before you ship it.
           </h2>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Link href="/runs" className="btn-primary">
-              Launch a Run
+            <Link href="/copilot" className="btn-primary">
+              Open Copilot
             </Link>
             <Link href="/datasets" className="btn-secondary">
               Upload a Dataset

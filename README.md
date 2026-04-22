@@ -167,15 +167,47 @@ npx wrangler dev
 - Copilot: `http://localhost:3000/copilot`
 - Backend docs: `http://127.0.0.1:8000/docs`
 
+## Reviewer Quick Start
+
+For the shortest local path, use demo mode and start only these four surfaces:
+
+1. Infrastructure
+
+```bash
+docker compose up -d postgres redis
+```
+
+2. Backend API
+
+```bash
+cd backend && source .venv/bin/activate && alembic upgrade head && uvicorn app.main:app --reload
+```
+
+3. Frontend
+
+```bash
+cd frontend && npm run dev
+```
+
+4. Cloudflare Copilot Worker
+
+```bash
+cd cloudflare/copilot && npm install && npx wrangler dev
+```
+
+Then open:
+
+- `http://localhost:3000/copilot`
+
+With `NEXT_PUBLIC_DEMO_MODE=true`, Copilot is publicly accessible for review and does not require Google login before the first meaningful interaction.
+
 ## Trying The Cloudflare AI Components
 
 The fastest path to evaluating the Cloudflare-specific work is:
 
 1. Start the frontend and Cloudflare Worker
 2. Open `http://localhost:3000/copilot`
-3. Sign in through Google
-4. Open `/copilot`
-5. Start a new chat and ask for an evaluation, for example:
+3. Start a new chat and ask for an evaluation, for example:
 
 ```text
 Evaluate this model output for hallucination risk:

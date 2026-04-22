@@ -3,11 +3,18 @@
 import Link from "next/link";
 import { ReactNode, useEffect, useState } from "react";
 
+import { demoMode } from "@/lib/demo";
+
 export function AuthGuard({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
 
   useEffect(() => {
+    if (demoMode) {
+      setAuthenticated(true);
+      setReady(true);
+      return;
+    }
     const token = window.localStorage.getItem("axiom-token");
     setAuthenticated(Boolean(token));
     setReady(true);
@@ -30,4 +37,3 @@ export function AuthGuard({ children }: { children: ReactNode }) {
 
   return <>{children}</>;
 }
-

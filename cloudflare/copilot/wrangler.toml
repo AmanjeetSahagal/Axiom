@@ -14,8 +14,9 @@ new_sqlite_classes = ["CopilotSession"]
 [vars]
 CORS_ORIGIN = "http://localhost:3000"
 
-[ai]
-binding = "AI"
+# Optional for authenticated Cloudflare environments:
+# [ai]
+# binding = "AI"
 
 # Secrets to set with `wrangler secret put`:
 # OPENAI_API_KEY

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { LogoMark } from "@/components/LogoMark";
+import { demoMode } from "@/lib/demo";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
@@ -50,9 +51,16 @@ export function SiteHeader({ signedIn = false, onSignOut, isSigningOut = false }
             {isSigningOut ? "Signing Out..." : "Sign Out"}
           </button>
         ) : (
-          <Link href="/login" className="btn-secondary text-sm">
-            Log In
-          </Link>
+          <>
+            {demoMode ? (
+              <Link href="/copilot" className="btn-primary text-sm">
+                Try Copilot
+              </Link>
+            ) : null}
+            <Link href="/login" className="btn-secondary text-sm">
+              {demoMode ? "Optional Login" : "Log In"}
+            </Link>
+          </>
         )}
       </div>
     </header>
