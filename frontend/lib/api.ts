@@ -6,6 +6,7 @@ import {
   DatasetUploadRow,
   PromptTemplate,
   ProviderKeyStatus,
+  OptimizerJob,
   Run,
   RunResultPage,
 } from "@/lib/types";
@@ -130,6 +131,14 @@ export const api = {
       throw new Error(message || `Request failed: ${response.status}`);
     }
   },
+  cancelRun: (
+    token: string,
+    id: string,
+  ) =>
+    request<Run>(`/runs/${id}/cancel`, {
+      method: "POST",
+      token,
+    }),
   createRun: (
     token: string,
     payload: {
@@ -198,6 +207,43 @@ export const api = {
     }),
   seedDemo: (token: string) =>
     request<{ dataset: Dataset; prompt: PromptTemplate; run: Run }>("/seed/demo", {
+      method: "POST",
+      token,
+    }),
+  optimizerJobs: (token: string) => request<OptimizerJob[]>("/optimizer/jobs", { token }),
+  optimizerJob: (token: string, id: string) => request<OptimizerJob>(`/optimizer/jobs/${id}`, { token }),
+  createOptimizerJob: (
+    token: string,
+    payload: {
+      dataset_id: string;
+      seed_prompt_template_id: string;
+      candidate_models: string[];
+      evaluators: string[];
+      target_score: number;
+      max_budget: number;
+      max_candidates: number;
+      max_iterations: number;
+      include_adversarial: boolean;
+    },
+  ) =>
+    request<OptimizerJob>("/optimizer/jobs", {
+      method: "POST",
+      token,
+      body: JSON.stringify(payload),
+    }),
+  promoteOptimizerCandidate: (token: string, jobId: string, candidateId?: string | null) => {
+    const query = new URLSearchParams();
+    if (candidateId) query.set("candidate_id", candidateId);
+    return request<{ prompt_template_id: string; name: string; version: number }>(
+      `/optimizer/jobs/${jobId}/promote${query.toString() ? `?${query.toString()}` : ""}`,
+      {
+        method: "POST",
+        token,
+      },
+    );
+  },
+  cancelOptimizerJob: (token: string, jobId: string) =>
+    request<OptimizerJob>(`/optimizer/jobs/${jobId}/cancel`, {
       method: "POST",
       token,
     }),

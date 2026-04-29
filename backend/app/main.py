@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes.auth import router as auth_router
 from app.api.routes.compare import router as compare_router
 from app.api.routes.datasets import router as datasets_router
+from app.api.routes.optimizer import router as optimizer_router
 from app.api.routes.provider_keys import router as provider_keys_router
 from app.api.routes.prompts import router as prompts_router
 from app.api.routes.runs import router as runs_router
@@ -32,6 +33,7 @@ app.include_router(prompts_router)
 app.include_router(provider_keys_router)
 app.include_router(runs_router)
 app.include_router(compare_router)
+app.include_router(optimizer_router)
 app.include_router(seed_router)
 
 

@@ -6,6 +6,7 @@ MODEL_PRICING = {
     "claude-3.7-sonnet": {"input": 3.00 / 1_000_000, "output": 15.00 / 1_000_000},
     "gemini-2.5-flash": {"input": 0.30 / 1_000_000, "output": 2.50 / 1_000_000},
     "gemini-2.5-flash-lite": {"input": 0.10 / 1_000_000, "output": 0.40 / 1_000_000},
+    "gemini-2.5-pro": {"input": 1.25 / 1_000_000, "output": 10.00 / 1_000_000},
 }
 
 

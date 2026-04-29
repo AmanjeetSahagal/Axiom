@@ -73,6 +73,8 @@ def process_run(db: Session, run_id: UUID) -> EvalRun:
         )
         .where(EvalRun.id == run_id)
     ).unique().scalar_one()
+    if run.status == RunStatus.canceled:
+        return run
     run.status = RunStatus.running
     db.commit()
 
@@ -83,6 +85,12 @@ def process_run(db: Session, run_id: UUID) -> EvalRun:
 
     try:
         for row in run.dataset.rows:
+            db.refresh(run)
+            if run.status == RunStatus.canceled:
+                run.last_error = "Run canceled by user"
+                db.commit()
+                db.refresh(run)
+                return run
             rendered_user = render_template(run.prompt_template.user_template, row.input) if run.prompt_template else ""
             try:
                 if run.run_type == RunType.imported:
@@ -169,7 +177,8 @@ def process_run(db: Session, run_id: UUID) -> EvalRun:
 
         run.avg_score = round(mean(score_totals), 4) if score_totals else 0.0
         run.total_cost = round(total_cost, 6)
-        run.status = RunStatus.completed
+        if run.status != RunStatus.canceled:
+            run.status = RunStatus.completed
         db.commit()
         db.refresh(run)
         return run

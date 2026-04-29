@@ -2,6 +2,10 @@
 
 Axiom is an LLM evaluation platform for running prompt and model experiments against structured datasets, scoring outputs, and comparing run quality, latency, and cost.
 
+The product now includes an Optimizer workflow that searches prompt/model candidates and recommends the cheapest configuration that meets a target score. Optimizer jobs can generate adversarial dataset rows, evaluate candidates through normal runs, and show a Pareto frontier for score, cost, and latency.
+
+Active evaluation runs and optimizer jobs can be aborted from the UI. Cancellation is cooperative: completed row results and completed candidates remain available, and workers stop at the next row or candidate boundary.
+
 For the Cloudflare AI assignment, this repository also includes a Cloudflare-backed AI Copilot with:
 
 - chat input at `/copilot`
@@ -72,6 +76,7 @@ npx wrangler dev
 - Landing page: `http://localhost:3000`
 - Login: `http://localhost:3000/login`
 - Dashboard: `http://localhost:3000/dashboard`
+- Optimizer: `http://localhost:3000/optimizer`
 - Copilot: `http://localhost:3000/copilot`
 - Backend docs: `http://127.0.0.1:8000/docs`
 
@@ -134,6 +139,7 @@ npm run dev:clean
 Open:
 
 - Frontend: `http://localhost:3000`
+- Optimizer: `http://localhost:3000/optimizer`
 - Backend docs: `http://localhost:8000/docs`
 
 ### 5. Cloudflare Copilot
@@ -236,6 +242,9 @@ Use three terminals:
 ## Current Caveats
 
 - Generation, embeddings, and judge scoring use Gemini from `backend/app/services/llm.py` and `backend/app/services/evaluators.py`.
+- Optimizer prompt search uses deterministic production-safe prompt variants in v1, then evaluates each variant through the normal run pipeline.
+- Optimizer candidate prompts are stored as prompt templates with an `[Optimizer]` prefix so each candidate run remains reproducible.
+- Run and optimizer aborts are cooperative, so an in-flight provider request may finish before the worker observes cancellation.
 - The frontend stores the app token in `localStorage` after Firebase Google sign-in.
 - Run `alembic upgrade head` before starting the API after schema changes.
 
@@ -266,15 +275,19 @@ This repository includes:
 
 - JWT auth and user-scoped records
 - dataset, prompt, run, and compare APIs
+- optimizer APIs for prompt/model search, cheapest-passing recommendation, candidate promotion, and Pareto analysis
 - Cloudflare Worker copilot with Durable Object memory
 - generated and imported run modes
 - prompt rendering and Gemini-backed evaluation
-- Celery-based async run processing flow
-- a frontend shell for login, dashboard, datasets, prompts, runs, and compare
+- Celery-based async run and optimizer processing flows
+- cooperative abort controls for active runs and optimizer jobs
+- a frontend shell for login, dashboard, datasets, prompts, runs, optimizer, compare, and settings
 
 Model calls are wrapped behind service boundaries so provider-specific logic can be hardened without changing route handlers.
 
 Imported runs can evaluate precomputed `model_output` values stored on dataset rows without calling Gemini for generation.
+
+Optimizer jobs create prompt variants, evaluate them as normal generated runs, track score/cost/latency, mark Pareto-optimal candidates, and recommend the cheapest prompt/model configuration that meets the target score.
 
 ## Submission Notes
 

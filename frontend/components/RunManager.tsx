@@ -217,6 +217,25 @@ export function RunManager() {
     }
   }
 
+  async function cancelRun(runId: string) {
+    const token = window.localStorage.getItem("axiom-token");
+    if (!token) {
+      setStatus("Login required.");
+      return;
+    }
+    if (!window.confirm(`Abort run ${runId.slice(0, 8)}? Completed rows will remain stored.`)) {
+      return;
+    }
+    try {
+      setStatus(`Aborting run ${runId.slice(0, 8)}...`);
+      await api.cancelRun(token, runId);
+      setStatus("Run abort requested.");
+      await load({ silent: true });
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Failed to abort run");
+    }
+  }
+
   return (
     <div className="space-y-6">
       <form onSubmit={onSubmit} className="grid gap-4 rounded-[28px] border border-black/5 bg-white/80 p-5 shadow-panel md:grid-cols-2">
@@ -401,13 +420,24 @@ export function RunManager() {
                 <td className="px-4 py-3">{run.failed_rows}</td>
                 <td className="px-4 py-3">{run.avg_score.toFixed(2)}</td>
                 <td className="px-4 py-3">
-                  <button
-                    className="btn-danger text-xs"
-                    type="button"
-                    onClick={() => void deleteRun(run.id)}
-                  >
-                    Delete
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    {run.status === "pending" || run.status === "running" ? (
+                      <button
+                        className="btn-secondary text-xs"
+                        type="button"
+                        onClick={() => void cancelRun(run.id)}
+                      >
+                        Abort
+                      </button>
+                    ) : null}
+                    <button
+                      className="btn-danger text-xs"
+                      type="button"
+                      onClick={() => void deleteRun(run.id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

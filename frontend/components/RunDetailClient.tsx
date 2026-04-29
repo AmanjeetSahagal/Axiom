@@ -39,6 +39,25 @@ export function RunDetailClient({ id }: { id: string }) {
     }
   }
 
+  async function cancelRun() {
+    const token = window.localStorage.getItem("axiom-token");
+    if (!token) {
+      setStatus("Login required.");
+      return;
+    }
+    if (!window.confirm(`Abort run ${id.slice(0, 8)}? Completed row results will remain available.`)) {
+      return;
+    }
+    try {
+      setStatus("Requesting run abort...");
+      const updated = await api.cancelRun(token, id);
+      setRun(updated);
+      setStatus("Run abort requested.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Failed to abort run");
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
 
@@ -117,6 +136,11 @@ export function RunDetailClient({ id }: { id: string }) {
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
+          {run.status === "pending" || run.status === "running" ? (
+            <button className="btn-danger text-sm" type="button" onClick={() => void cancelRun()}>
+              Abort Run
+            </button>
+          ) : null}
           <button className="btn-secondary text-sm" type="button" onClick={() => exportResults("json", { pretty: true })}>
             Export JSON
           </button>

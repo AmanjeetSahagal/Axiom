@@ -249,6 +249,7 @@ def get_dashboard(
                 DashboardBreakdownItem(name="Completed", value=0),
                 DashboardBreakdownItem(name="In Flight", value=0),
                 DashboardBreakdownItem(name="Failed", value=0),
+                DashboardBreakdownItem(name="Canceled", value=0),
             ],
             model_breakdown=[],
             provider_breakdown=[],
@@ -308,6 +309,7 @@ def get_dashboard(
                 DashboardBreakdownItem(name="Completed", value=0),
                 DashboardBreakdownItem(name="In Flight", value=0),
                 DashboardBreakdownItem(name="Failed", value=0),
+                DashboardBreakdownItem(name="Canceled", value=0),
             ],
             model_breakdown=[],
             provider_breakdown=[],
@@ -440,6 +442,7 @@ def get_dashboard(
         DashboardBreakdownItem(name="Completed", value=sum(1 for run in runs if get_status_name(run) == "completed")),
         DashboardBreakdownItem(name="In Flight", value=sum(1 for run in runs if get_status_name(run) in {"pending", "running"})),
         DashboardBreakdownItem(name="Failed", value=sum(1 for run in runs if get_status_name(run) == "failed")),
+        DashboardBreakdownItem(name="Canceled", value=sum(1 for run in runs if get_status_name(run) == "canceled")),
     ]
 
     return DashboardResponse(
@@ -555,6 +558,22 @@ def delete_run(
     db.delete(run)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{run_id}/cancel", response_model=RunResponse)
+def cancel_run(
+    run_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    run = get_owned_run_or_404(db, current_user, run_id)
+    if run.status in {RunStatus.completed, RunStatus.failed, RunStatus.canceled}:
+        return run
+    run.status = RunStatus.canceled
+    run.last_error = "Run canceled by user"
+    db.commit()
+    db.refresh(run)
+    return run
 
 
 @router.get("/{run_id}/export")

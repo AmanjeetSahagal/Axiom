@@ -18,6 +18,7 @@ class RunStatus(str, enum.Enum):
     running = "running"
     completed = "completed"
     failed = "failed"
+    canceled = "canceled"
 
 
 class RunType(str, enum.Enum):
@@ -29,6 +30,14 @@ class ScoreType(str, enum.Enum):
     exact = "exact"
     semantic = "semantic"
     judge = "judge"
+
+
+class OptimizationJobStatus(str, enum.Enum):
+    pending = "pending"
+    running = "running"
+    completed = "completed"
+    failed = "failed"
+    canceled = "canceled"
 
 
 def default_evaluators() -> list[str]:
@@ -80,6 +89,7 @@ class Dataset(Base):
     user = relationship("User", back_populates="datasets")
     rows = relationship("DatasetRow", back_populates="dataset", cascade="all, delete-orphan")
     runs = relationship("EvalRun", back_populates="dataset")
+    optimization_jobs = relationship("OptimizationJob", back_populates="dataset", cascade="all, delete-orphan")
 
 
 class DatasetRow(Base):
@@ -109,6 +119,7 @@ class PromptTemplate(Base):
 
     user = relationship("User", back_populates="prompts")
     runs = relationship("EvalRun", back_populates="prompt_template")
+    seed_optimization_jobs = relationship("OptimizationJob", back_populates="seed_prompt_template")
 
 
 class EvalRun(Base):
@@ -180,3 +191,72 @@ class EvaluatorScore(Base):
     score_metadata: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
 
     eval_result = relationship("EvalResult", back_populates="scores")
+
+
+class OptimizationJob(Base):
+    __tablename__ = "optimization_jobs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=default_uuid)
+    dataset_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("datasets.id"), index=True)
+    seed_prompt_template_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("prompt_templates.id"), index=True
+    )
+    candidate_models: Mapped[list[str]] = mapped_column(JSON, default=list)
+    selected_evaluators: Mapped[list[str]] = mapped_column(JSON, default=default_evaluators)
+    target_score: Mapped[float] = mapped_column(Float, default=0.85)
+    max_budget: Mapped[float] = mapped_column(Float, default=1.0)
+    max_candidates: Mapped[int] = mapped_column(Integer, default=12)
+    max_iterations: Mapped[int] = mapped_column(Integer, default=3)
+    include_adversarial: Mapped[bool] = mapped_column(Boolean, default=True)
+    status: Mapped[OptimizationJobStatus] = mapped_column(
+        Enum(OptimizationJobStatus), default=OptimizationJobStatus.pending
+    )
+    progress: Mapped[float] = mapped_column(Float, default=0.0)
+    total_spend: Mapped[float] = mapped_column(Float, default=0.0)
+    best_candidate_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("optimization_candidates.id", use_alter=True), nullable=True
+    )
+    cheapest_passing_candidate_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("optimization_candidates.id", use_alter=True), nullable=True
+    )
+    failure_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    dataset = relationship("Dataset", back_populates="optimization_jobs")
+    seed_prompt_template = relationship("PromptTemplate", back_populates="seed_optimization_jobs")
+    candidates = relationship(
+        "OptimizationCandidate",
+        back_populates="job",
+        cascade="all, delete-orphan",
+        foreign_keys="OptimizationCandidate.job_id",
+    )
+    best_candidate = relationship("OptimizationCandidate", foreign_keys=[best_candidate_id], post_update=True)
+    cheapest_passing_candidate = relationship(
+        "OptimizationCandidate", foreign_keys=[cheapest_passing_candidate_id], post_update=True
+    )
+
+
+class OptimizationCandidate(Base):
+    __tablename__ = "optimization_candidates"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=default_uuid)
+    job_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("optimization_jobs.id"), index=True)
+    prompt_template_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("prompt_templates.id"), index=True)
+    eval_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("eval_runs.id"), index=True, nullable=True)
+    model: Mapped[str] = mapped_column(String(120))
+    system_prompt: Mapped[str] = mapped_column(Text)
+    user_template: Mapped[str] = mapped_column(Text)
+    iteration: Mapped[int] = mapped_column(Integer, default=1)
+    score: Mapped[float] = mapped_column(Float, default=0.0)
+    cost: Mapped[float] = mapped_column(Float, default=0.0)
+    latency_ms: Mapped[float] = mapped_column(Float, default=0.0)
+    passes_target: Mapped[bool] = mapped_column(Boolean, default=False)
+    pareto_optimal: Mapped[bool] = mapped_column(Boolean, default=False)
+    pruned: Mapped[bool] = mapped_column(Boolean, default=False)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    job = relationship("OptimizationJob", back_populates="candidates", foreign_keys=[job_id])
+    prompt_template = relationship("PromptTemplate")
+    eval_run = relationship("EvalRun")

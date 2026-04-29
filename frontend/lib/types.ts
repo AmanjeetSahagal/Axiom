@@ -189,3 +189,44 @@ export type ProviderKeyStatus = {
   source: "user" | "environment" | "missing";
   key_hint?: string | null;
 };
+
+export type OptimizerCandidate = {
+  id: string;
+  job_id: string;
+  prompt_template_id: string;
+  eval_run_id?: string | null;
+  model: string;
+  system_prompt: string;
+  user_template: string;
+  iteration: number;
+  score: number;
+  cost: number;
+  latency_ms: number;
+  passes_target: boolean;
+  pareto_optimal: boolean;
+  pruned: boolean;
+  error_message?: string | null;
+  created_at: string;
+};
+
+export type OptimizerJob = {
+  id: string;
+  dataset_id: string;
+  seed_prompt_template_id: string;
+  candidate_models: string[];
+  selected_evaluators: string[];
+  target_score: number;
+  max_budget: number;
+  max_candidates: number;
+  max_iterations: number;
+  include_adversarial: boolean;
+  status: string;
+  progress: number;
+  total_spend: number;
+  best_candidate_id?: string | null;
+  cheapest_passing_candidate_id?: string | null;
+  failure_metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  candidates: OptimizerCandidate[];
+};
